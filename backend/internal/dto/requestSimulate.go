@@ -1,6 +1,6 @@
 package dto
 
-// Estrutura para representar um processo na requisição de simulação
+// RequestProcess representa um processo enviado na requisição de simulação.
 type RequestProcess struct {
 	Name     string `json:"name"`
 	Arrival  int    `json:"arrival"`
@@ -8,7 +8,7 @@ type RequestProcess struct {
 	Priority int    `json:"priority"`
 }
 
-// Estrutura para representar a requisição de simulação
+// RequestSimulate é o corpo da requisição para iniciar uma simulação de escalonamento.
 type RequestSimulate struct {
 	Algorithm string           `json:"algorithm"`
 	Quantum   int              `json:"quantum"`

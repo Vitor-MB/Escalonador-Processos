@@ -5,8 +5,9 @@ import (
 	"escalprocess/internal/scheduler"
 )
 
+// Simulate converte a requisição da API para o formato interno e executa a simulação.
 func Simulate(req dto.RequestSimulate) (dto.ResponseSimulate, error) {
-
+	// Prepara a estrutura de entrada do núcleo do escalonador.
 	s := scheduler.Simulate{
 		Algorithm: req.Algorithm,
 		Quantum:   req.Quantum,
@@ -42,7 +43,7 @@ func Simulate(req dto.RequestSimulate) (dto.ResponseSimulate, error) {
 		},
 	}
 
-	// Preencher processos
+	// Converte cada processo do resultado interno para o formato da resposta.
 	for i, p := range res.Processes {
 		out.Processes[i] = dto.ResponseProcess{
 			Name:       p.Name,
@@ -57,6 +58,7 @@ func Simulate(req dto.RequestSimulate) (dto.ResponseSimulate, error) {
 		}
 	}
 
+	// Converte os intervalos de execução em um formato serializável.
 	for i, it := range res.Intervals {
 		pname := it.ProcessName
 		if pname == "" && it.Id > 0 && it.Id-1 < len(req.Processes) {
@@ -69,6 +71,7 @@ func Simulate(req dto.RequestSimulate) (dto.ResponseSimulate, error) {
 		}
 	}
 
+	// Converte a timeline interna.
 	for i, t := range res.Timeline {
 		out.Timeline[i] = dto.ResponseTimeline{
 			From:   t.From,
@@ -80,9 +83,11 @@ func Simulate(req dto.RequestSimulate) (dto.ResponseSimulate, error) {
 	return out, nil
 }
 
+// GetAlgorithms retorna todos os algoritmos disponíveis com suas características.
 func GetAlgorithms() dto.ResponseAlgorithms {
 	out := dto.ResponseAlgorithms{Algorithms: []dto.ResponseAlgorithm{}}
-	for _, m := range scheduler.Algorithms {
+	algorithms := scheduler.ListAlgorithms()
+	for _, m := range algorithms {
 		out.Algorithms = append(out.Algorithms, dto.ResponseAlgorithm{
 			Algorithm:    m.Algorithm,
 			Preemptive:   m.Preemptive,

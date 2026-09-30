@@ -8,6 +8,7 @@ import (
 	"net/http"
 )
 
+// Simulate recebe uma requisição de simulação, valida o corpo e retorna o resultado do escalonamento.
 func Simulate(w http.ResponseWriter, r *http.Request) {
 	var req dto.RequestSimulate
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -22,9 +23,9 @@ func Simulate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.WriteJSON(w, http.StatusOK, out)
-
 }
 
+// GetAlgorithms retorna a lista de algoritmos suportados pela API.
 func GetAlgorithms(w http.ResponseWriter, r *http.Request) {
 	out := service.GetAlgorithms()
 	response.WriteJSON(w, http.StatusOK, out)

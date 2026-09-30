@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// Constante que indica se um número menor representa uma prioridade maior
+// LowerNumberIsHigherPriority indica que a prioridade menor corresponde a maior importância.
 const LowerNumberIsHigherPriority = true
 
 // Engine é a estrutura que mantém o estado da simulação
@@ -119,6 +119,7 @@ func (e *Engine) row(running *Process) TimeLineRow {
 	return TimeLineRow{From: e.T, To: e.T + 1, States: states}
 }
 
+// Run executa a simulação de escalonamento para um conjunto de processos e retorna as métricas finais.
 func Run(s Simulate) (*Result, error) {
 	meta, ok := Algorithms[s.Algorithm]
 	if !ok {
@@ -137,14 +138,17 @@ func Run(s Simulate) (*Result, error) {
 		return nil, fmt.Errorf("aging deve ser maior que 0")
 	}
 
+	// Gera uma fonte aleatória para desempates em casos de igualdade entre processos.
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 
+	// Inicializa o motor da simulação com os parâmetros do algoritmo selecionado.
 	e := &Engine{Quantum: s.Quantum, Aging: s.Aging, Rng: rng}
 	for i, p := range s.Processes {
 		if p.Arrival < 0 || p.Burst < 1 {
 			return nil, fmt.Errorf("processo %d tem valores inválidos: arrival=%d, burst=%d", i, p.Arrival, p.Burst)
 		}
 
+		// Ajusta a prioridade para o critério interno da simulação (menor valor = maior prioridade).
 		base := p.Priority
 		if !LowerNumberIsHigherPriority {
 			base = -base
@@ -164,22 +168,25 @@ func Run(s Simulate) (*Result, error) {
 		})
 	}
 
+	// Seleciona a política de escalonamento correta para a execução.
 	alg := newAlgorithm(s.Algorithm)
 	res := &Result{Algorithm: s.Algorithm, Intervals: []Interval{}, Timeline: []TimeLineRow{}}
 
+	// Laço principal: cada iteração representa um tick de processamento da CPU.
 	done := 0
 	e.Push()
 	for done < len(e.Processes) {
 		run := alg.pick(e)
 		res.Timeline = append(res.Timeline, e.row(run))
 
-		if run == nil { // CPU ociosa
+		if run == nil { // CPU ociosa: não há processo pronto para executar neste instante.
 			e.Last, e.Slice = nil, 0
 			e.T++
 			e.Push()
 			continue
 		}
 
+		// Quando o processo em execução muda, contabiliza a troca de contexto.
 		if run != e.Last {
 			if e.Last != nil {
 				res.ContextSwitches++
@@ -191,8 +198,9 @@ func Run(s Simulate) (*Result, error) {
 			run.start = e.T
 		}
 
+		// Agrupa execuções contínuas do mesmo processo em um único intervalo de tempo.
 		if n := len(res.Intervals); n > 0 && res.Intervals[n-1].Id == run.Id &&
-			res.Intervals[n-1].Finish == e.T { // Estende o intervalo anterior se for o mesmo processo.
+			res.Intervals[n-1].Finish == e.T {
 			res.Intervals[n-1].Finish++
 		} else {
 			res.Intervals = append(res.Intervals, Interval{
@@ -202,6 +210,7 @@ func Run(s Simulate) (*Result, error) {
 			})
 		}
 
+		// Executa um tick do processo atual e atualiza o estado do quantum e do tempo global.
 		run.remaining--
 		e.Slice++
 		e.T++
@@ -214,24 +223,26 @@ func Run(s Simulate) (*Result, error) {
 		}
 		e.Last = run
 
+		// Se o processo terminou ou o quantum expirou, a próxima escolha deve considerar reinício do slice.
 		sliceEnded := fineshed || (e.Quantum > 0 && e.Slice >= e.Quantum)
 		if sliceEnded {
 			e.Slice = 0
 		}
 
-		e.Push() // chegadas em t novo entram ANTES do processo preemptado voltar à fila
+		// Novos processos só entram antes da possível volta do processo preemptado à fila.
+		e.Push()
 
 		alg.after(e, run, sliceEnded)
 	}
 
-	// Métricas
+	// Calcula tempo de turnaround, waiting e response para cada processo.
 
 	var sumT, sumW, sumR float64
 
 	for _, p := range e.Processes {
 		turn := p.finish - p.Arrival
 		wait := turn - p.Burst
-		resp := p.start - p.Burst
+		resp := p.start - p.Arrival
 
 		res.Processes = append(res.Processes, ProcessResult{
 			Id:         p.Id,

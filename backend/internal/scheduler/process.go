@@ -1,5 +1,6 @@
 package scheduler
 
+// Process representa um processo a ser escalonado, incluindo campos internos usados pela simulação.
 type Process struct {
 	Id        int
 	Name      string

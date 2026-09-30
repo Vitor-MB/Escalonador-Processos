@@ -20,6 +20,19 @@ var Algorithms = map[string]MetaData{
 	"rr-prio-aging": {Algorithm: "rr-prio-aging", Preemptive: true, UsesQuantum: true, UsesAging: true, UsesPriority: true},
 }
 
+// Ordem para saida padronizada em GET/algorithm
+var AlgorithmOrder = []string{
+	"fcfs", "sjf", "srtf", "prio-np", "prio-p", "rr", "rr-prio-aging",
+}
+
+func ListAlgorithms() []MetaData {
+	list := make([]MetaData, 0, len(AlgorithmOrder))
+	for _, name := range AlgorithmOrder {
+		list = append(list, Algorithms[name])
+	}
+	return list
+}
+
 // Interface que define o comportamento de um algoritmo de escalonamento
 type algorithm interface {
 	// Escolhe o próximo processo a ser executado no tick atual
