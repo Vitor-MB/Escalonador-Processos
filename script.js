@@ -1,5 +1,10 @@
 const COLORS=[['--p1','--p1d'],['--p2','--p2d'],['--p3','--p3d'],['--p4','--p4d'],['--p5','--p5d'],['--p6','--p6d']];
 
+// Endpoint base da API (não altere se o backend estiver em outra porta)
+const API_BASE = 'http://localhost:8080';
+// Mapa de metadados dos algoritmos retornados pela API
+const metadataMap = {};
+
 let rows=0;
 function addRow(pre){
   rows++;
@@ -20,10 +25,32 @@ function addRow(pre){
 document.getElementById('algo').addEventListener('change',syncAlgoUI);
 
 function syncAlgoUI(){
-  const a=document.getElementById('algo').value;
-  document.getElementById('quantumBox').classList.toggle('show', a==='rr'||a==='rr-prio-aging');
-  document.getElementById('agingBox').classList.toggle('show', a==='rr-prio-aging');
+    const a=document.getElementById('algo').value;
+    const meta = metadataMap[a];
+    const usesQuantum = meta ? meta.uses_quantum : (a==='rr'||a==='rr-prio-aging');
+    const usesAging = meta ? meta.uses_aging : (a==='rr-prio-aging');
+    document.getElementById('quantumBox').classList.toggle('show', usesQuantum);
+    document.getElementById('agingBox').classList.toggle('show', usesAging);
 }
+
+// Inicializa a UI buscando os algoritmos no backend (se disponível)
+async function init(){
+    try{
+        const resp = await fetch(API_BASE + '/algorithm');
+        if(resp.ok){
+            const data = await resp.json();
+            const sel = document.getElementById('algo');
+            sel.innerHTML = data.algorithms.map(a=>`<option value="${a.algorithm}">${a.algorithm}</option>`).join('');
+            data.algorithms.forEach(a=>metadataMap[a.algorithm]=a);
+            syncAlgoUI();
+            hideError();
+        }
+    }catch(e){
+        console.warn('Não foi possível buscar algoritmos do backend:', e);
+        showError('Não foi possível carregar algoritmos do backend. Verifique se o servidor está rodando.');
+    }
+}
+document.addEventListener('DOMContentLoaded', init);
 
 // Adiciona alguns Elementos de exemplo para os processos
 [{a:0,b:5,p:2},{a:1,b:3,p:1},{a:2,b:8,p:3},{a:3,b:6,p:2},{a:4,b:2,p:1}].forEach(addRow);
@@ -36,234 +63,66 @@ function readProcs(){
   });
 }
 
-//Simula os ticks de execução 
-function simulate(procs, algo, quantum, aging){
-    const N=procs.length;
-    const st=procs.map(p=>({name:p.name, arrival:p.a, burst:p.b, prio:p.p, remaining:p.b, start:null, finish:null}));
-    let t = Math.min(...st.map(p=>p.arrival));
-    const intervals=[];
-    let lastRunning=null, segStart=null;
-    let contextSwitches = 0;
+// REMOVIDO: simulador local removido para depender exclusivamente do backend.
 
-    function pushTick(name){
-        if(name===lastRunning){ /* mesmo tick (não faz nada) */ }
-        
-        else{
-            if(lastRunning!==null) {
-                intervals.push({name:lastRunning, start:segStart, end:t});
-                contextSwitches++;
-            }
-            lastRunning=name; segStart=t;
-        }
-    }
+// Mostrar/ocultar banner de erro
+function showError(msg){
+    const b=document.getElementById('errorBanner');
+    if(b){ b.textContent=msg; b.style.display='block'; }
+}
 
-    function closeSeg(){ 
-        if(lastRunning!==null){ 
-            intervals.push({name:lastRunning, start:segStart, end:t}); 
-            lastRunning=null; 
-        } 
-    }   
-
-    const arrived = ()=>st.filter(p=>p.arrival<=t && p.remaining>0);
-
-    if(algo==='fcfs' || algo==='sjf' || algo==='prio-np'){
-        let committed=null;
-        let guard=0;
-        while(st.some(p=>p.remaining>0) && guard<100000){
-            guard++;
-            const av=arrived();
-
-            if(!committed || committed.remaining<=0){
-                if(av.length===0){ 
-                    t++; 
-                    continue; 
-                }
-
-                let pick;
-                if(algo==='fcfs') 
-                    pick=av.reduce((a,b)=> a.arrival<b.arrival?a: b.arrival<a.arrival?b: (a.name<b.name?a:b));
-                else if(algo==='sjf') 
-                    pick=av.reduce((a,b)=> a.burst<b.burst?a: b.burst<a.burst?b: (a.arrival<b.arrival?a:b));
-                else 
-                    pick=av.reduce((a,b)=> a.prio<b.prio?a: b.prio<a.prio?b: (a.arrival<b.arrival?a:b));
-
-                committed=pick;
-            }
-            if(committed.start===null) 
-                committed.start=t;
-            pushTick(committed.name);
-            committed.remaining--;
-            t++;
-            if(committed.remaining<=0){ 
-                committed.finish=t; 
-                committed=null; 
-            }
-        }
-        
-        closeSeg();
-    }
-    else if(algo==='srtf' || algo==='prio-p'){
-        let guard=0;
-        while(st.some(p=>p.remaining>0) && guard<100000){
-            guard++;
-            const av=arrived();
-            if(av.length===0){ 
-                t++; 
-                continue; 
-            }
-
-            let pick;
-            if(algo==='srtf') 
-                pick=av.reduce((a,b)=> a.remaining<b.remaining?a: b.remaining<a.remaining?b: (a.arrival<b.arrival?a:b));
-            else 
-                pick=av.reduce((a,b)=> a.prio<b.prio?a: b.prio<a.prio?b: (a.arrival<b.arrival?a:b));
-            
-            if(pick.start===null) 
-                pick.start=t;
-            pushTick(pick.name);
-            pick.remaining--;
-            t++;
-            if(pick.remaining<=0) 
-                pick.finish=t;
-        }
-        closeSeg();
-    }
-    else if(algo==='rr'){
-        const q=[]; const queued=new Set();
-        st.sort((a,b)=>a.arrival-b.arrival);
-        let i=0, guard=0, run=null, runLeft=0;
-        while(st.some(p=>p.remaining>0) && guard<200000){
-            guard++;
-            while(i<st.length && st[i].arrival<=t){ 
-                if(!queued.has(st[i].name) && st[i].remaining>0 && st[i]!==run){ 
-                    q.push(st[i]); 
-                    queued.add(st[i].name);
-                } 
-                i++; 
-            }
-
-            if(!run){
-                if(q.length===0){ 
-                    t++; 
-                    continue; 
-                }
-                run=q.shift(); 
-                queued.delete(run.name); 
-                runLeft=Math.min(quantum, run.remaining);
-            }
-            if(run.start===null) 
-                run.start=t;
-
-            pushTick(run.name);
-            run.remaining--; 
-            runLeft--; 
-            t++;
-
-            // Enfileira novos processos que chegaram durante a execução do processo atual 
-            while(i<st.length && st[i].arrival<=t){ 
-                if(!queued.has(st[i].name) && st[i].remaining>0 && st[i]!==run){ 
-                    q.push(st[i]); 
-                    queued.add(st[i].name);
-                } 
-                i++; 
-            }
-            if(run.remaining<=0){ 
-                run.finish=t; 
-                run=null; 
-            }
-            else if(runLeft<=0){ 
-                q.push(run); 
-                queued.add(run.name); 
-                run=null; 
-            }
-        }
-        closeSeg();
-    }
-
-    else if(algo==='rr-prio-aging'){
-        const q=[]; 
-        const queued=new Set();
-        st.sort((a,b)=>a.arrival-b.arrival);
-        const waitSince={}; 
-        st.forEach(p=>waitSince[p.name]=null);
-        let i=0, guard=0, run=null, runLeft=0;
-        
-        function effPrio(p){
-            if(waitSince[p.name]===null) 
-                return p.prio;
-
-            const waited=t-waitSince[p.name];
-            return Math.max(0, p.prio - Math.floor(waited/aging));
-        }
-
-        while(st.some(p=>p.remaining>0) && guard<200000){
-            guard++;
-            while(i<st.length && st[i].arrival<=t){ 
-                if(!queued.has(st[i].name) && st[i].remaining>0 && st[i]!==run){ 
-                    q.push(st[i]); 
-                    queued.add(st[i].name); 
-                    waitSince[st[i].name]=t;
-                } 
-                i++; 
-            }
-
-            if(!run){
-                if(q.length===0){ 
-                    t++; 
-                    continue; 
-                }
-                q.sort((a,b)=> effPrio(a)-effPrio(b) || a.arrival-b.arrival);
-                run=q.shift(); queued.delete(run.name); 
-                waitSince[run.name]=null; 
-                runLeft=Math.min(quantum, run.remaining);
-            }
-            if(run.start===null) 
-                run.start=t;
-            pushTick(run.name);
-            run.remaining--; 
-            runLeft--; 
-            t++;
-            while(i<st.length && st[i].arrival<=t){ 
-                if(!queued.has(st[i].name) && st[i].remaining>0 && st[i]!==run){ 
-                    q.push(st[i]); 
-                    queued.add(st[i].name); 
-                    waitSince[st[i].name]=t;
-                } 
-                i++; 
-            }
-            if(run.remaining<=0){ 
-                run.finish=t; 
-                run=null; 
-            }
-            else if(runLeft<=0){ 
-                q.push(run); 
-                queued.add(run.name); 
-                waitSince[run.name]=t; 
-                run=null; 
-            }
-        }
-        closeSeg();
-    }
-
-    return {intervals, stats:st, contextSwitches};
+function hideError(){
+    const b=document.getElementById('errorBanner');
+    if(b){ b.textContent=''; b.style.display='none'; }
 }
 
 let SIM=null, playTimer=null, curT=0;
 
 function run(){
-  const procs=readProcs();
-  const algo=document.getElementById('algo').value;
-  const quantum=+document.getElementById('quantum').value||2;
-  const aging=+document.getElementById('aging').value||3;
-  const {intervals, stats, contextSwitches}=simulate(procs, algo, quantum, aging);
-  const maxT=Math.max(...intervals.map(iv=>iv.end), ...stats.map(s=>s.finish||0), 1);
-  const scale=Math.max(28, Math.min(60, 640/maxT));
-  SIM={procs, intervals, stats, maxT, scale, contextSwitches};
-  curT=maxT;
-  stopPlay();
-  renderMetrics();
-  renderAtTime(curT);
-  document.getElementById('resultCard').style.display='block';
+    const procs=readProcs();
+    const algo=document.getElementById('algo').value;
+    const quantum=+document.getElementById('quantum').value||2;
+    const aging=+document.getElementById('aging').value||3;
+
+    // Chama o backend; se falhar, exibe erro para o usuário
+    (async ()=>{
+        try{
+            hideError();
+            const body = {
+                algorithm: algo,
+                quantum: quantum,
+                aging: aging,
+                processes: procs.map(p=>({name:p.name, arrival:p.a, burst:p.b, priority:p.p}))
+            };
+            const resp = await fetch(API_BASE + '/simulate', {
+                method: 'POST',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify(body)
+            });
+
+            if(!resp.ok){
+                showError(`Falha na requisição: ${resp.status} ${resp.statusText}`);
+                return;
+            }
+
+            const data = await resp.json();
+            // Converte a resposta do backend para a estrutura usada pelo front
+            const intervals = data.intervals.map(i=>({name:i.process_name, start:i.start, end:i.finish}));
+            const stats = data.processes.map(p=>({name:p.name, arrival:p.arrival, burst:p.burst, start:p.start, finish:p.finish}));
+            const maxT = data.total_time || Math.max(...intervals.map(iv=>iv.end), ...stats.map(s=>s.finish||0),1);
+            const scale = Math.max(28, Math.min(60, 640/maxT));
+            SIM={procs, intervals, stats, maxT, scale, contextSwitches: data.context_switches||0};
+            curT=maxT;
+            stopPlay();
+            renderMetrics();
+            renderAtTime(curT);
+            document.getElementById('resultCard').style.display='block';
+        }catch(e){
+            console.error('Erro ao chamar backend:', e);
+            showError('Erro ao comunicar com o backend. Verifique se o servidor está rodando em ' + API_BASE);
+            return;
+        }
+    })();
 }
 
 function renderAtTime(t){
