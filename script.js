@@ -1,7 +1,8 @@
 const COLORS=[['--p1','--p1d'],['--p2','--p2d'],['--p3','--p3d'],['--p4','--p4d'],['--p5','--p5d'],['--p6','--p6d']];
 
-// Endpoint base da API (não altere se o backend estiver em outra porta)
+// Endpoint base da API
 const API_BASE = 'http://localhost:8080';
+
 // Mapa de metadados dos algoritmos retornados pela API
 const metadataMap = {};
 
@@ -14,9 +15,9 @@ function addRow(pre){
   const [fill,dark]=COLORS[(rows-1)%COLORS.length];
   tr.innerHTML=`<td><span class="swatch" style="background:var(${fill});border:1px solid var(${dark})"></span></td>
     <td><input value="${id}" data-f="name"></td>
-    <td><input type="number" min="0" value="${pre?pre.a:0}" data-f="a" style="width:60px"></td>
-    <td><input type="number" min="1" value="${pre?pre.b:4}" data-f="b" style="width:60px"></td>
-    <td><input type="number" min="0" value="${pre?pre.p:1}" data-f="p" style="width:60px"></td>
+    <td><input type="number" min="0" value="${pre?pre.a:0}" data-f="a" class="proc-input"></td>
+    <td><input type="number" min="1" value="${pre?pre.b:4}" data-f="b" class="proc-input"></td>
+    <td><input type="number" min="0" value="${pre?pre.p:1}" data-f="p" class="proc-input"></td>
     <td><button class="rowbtn" onclick="this.closest('tr').remove()">×</button></td>`;
   tb.appendChild(tr);
 }
@@ -24,6 +25,7 @@ function addRow(pre){
 
 document.getElementById('algo').addEventListener('change',syncAlgoUI);
 
+// Mostra ou esconde os campos de quantum e aging dependendo do algoritmo selecionado
 function syncAlgoUI(){
     const a=document.getElementById('algo').value;
     const meta = metadataMap[a];
@@ -48,6 +50,10 @@ async function init(){
     }catch(e){
         console.warn('Não foi possível buscar algoritmos do backend:', e);
         showError('Não foi possível carregar algoritmos do backend. Verifique se o servidor está rodando.');
+    } finally {
+        // só roda a simulação inicial depois de tentar carregar os algoritmos,
+        // pra evitar o errorBanner piscando antes do fetch terminar
+        run();
     }
 }
 document.addEventListener('DOMContentLoaded', init);
@@ -63,7 +69,6 @@ function readProcs(){
   });
 }
 
-// REMOVIDO: simulador local removido para depender exclusivamente do backend.
 
 // Mostrar/ocultar banner de erro
 function showError(msg){
@@ -81,8 +86,14 @@ let SIM=null, playTimer=null, curT=0;
 function run(){
     const procs=readProcs();
     const algo=document.getElementById('algo').value;
-    const quantum=+document.getElementById('quantum').value||2;
-    const aging=+document.getElementById('aging').value||3;
+
+    // usar Number.isFinite em vez de "||", pra não trocar 0 pelo padrão
+    // (0 é falsy em JS, então "0 || 2" dava 2 por engano)
+    const quantumRaw=+document.getElementById('quantum').value;
+    const quantum=Number.isFinite(quantumRaw) ? quantumRaw : 2;
+
+    const agingRaw=+document.getElementById('aging').value;
+    const aging=Number.isFinite(agingRaw) ? agingRaw : 3;
 
     // Chama o backend; se falhar, exibe erro para o usuário
     (async ()=>{
@@ -116,6 +127,8 @@ function run(){
             stopPlay();
             renderMetrics();
             renderAtTime(curT);
+            // se a view de texto estiver ativa, atualiza ela também
+            if(currentView==='text') renderTextDiagram();
             document.getElementById('resultCard').style.display='block';
         }catch(e){
             console.error('Erro ao chamar backend:', e);
@@ -125,10 +138,12 @@ function run(){
     })();
 }
 
+// Renderiza o gráfico de Gantt 
 function renderAtTime(t){
     const {procs, intervals, stats, maxT, scale}=SIM;
     const inner=document.getElementById('ganttInner');
     inner.innerHTML='';
+    // Renderiza cada processo
     procs.forEach(p=>{
         const row=document.createElement('div'); row.className='row';
         const lbl=document.createElement('div'); lbl.className='rowlabel'; lbl.textContent=p.name;
@@ -148,6 +163,7 @@ function renderAtTime(t){
             track.appendChild(b);
         });
 
+        // Renderiza os diamantes de chegada e conclusão
         const s=stats.find(x=>x.name===p.name);
         if(s.arrival<=t){
             const dA=document.createElement('div'); 
@@ -178,6 +194,7 @@ function renderAtTime(t){
         inner.appendChild(row);
     });
 
+    // Renderiza o eixo de tempo
     const axis=document.createElement('div'); 
     axis.className='axis';
     const albl=document.createElement('div'); 
@@ -200,19 +217,19 @@ function renderAtTime(t){
     legend.innerHTML='';
     legend.innerHTML=`
         <span>
-            <span class="diamond" style="position:static;transform:rotate(45deg);width:8px;height:8px;border-color:var(--muted);color:var(--muted)">
-            </span>Chegada</span>
-            <span><span class="diamond done" style="position:static;transform:rotate(45deg);width:8px;height:8px;border-color:var(--muted);color:var(--muted);background:var(--muted)">
-            </span>Conclusão</span>`;
+            <span class="diamond diamond-legend"></span>Chegada</span>
+            <span><span class="diamond done diamond-legend-done"></span>Conclusão</span>`;
 
     document.getElementById('clockLine').textContent = t>=maxT ? `t = ${maxT} (Concluído)` : `t = ${t}`;
 }
 
+
+//Carrega a tabela de métricas com os dados da simulação
 function renderMetrics(){
     const {stats, contextSwitches}=SIM;
     const tb=document.getElementById('metricsTable');
     let waitSum=0, turnSum=0, respSum=0;
-    let html='<tr><th>Processo</th><th>Chegada</th><th>Duração</th><th>Início</th><th>Término</th><th>Espera</th><th>Retorno</th><th>Resposta</th></tr>';
+    let html='<tr><th>Processo</th><th>Chegada</th><th>Duração</th><th>Início</th><th>Término</th><th>Espera</th><th>Turnaround</th><th>Resposta</th></tr>';
     stats.forEach(s=>{
         const turn=s.finish-s.arrival, wait=turn-s.burst, resp=s.start-s.arrival;
         waitSum+=wait; 
@@ -222,10 +239,11 @@ function renderMetrics(){
     });
     const n=stats.length;
     html+=`<tr><td colspan="5">Médias</td><td>${(waitSum/n).toFixed(2)}</td><td>${(turnSum/n).toFixed(2)}</td><td>${(respSum/n).toFixed(2)}</td></tr>`;
-    html+=`<tr><td colspan="8" style="text-align:center;font-weight:600;">Trocas de contexto: ${contextSwitches}</td></tr>`;
+    html+=`<tr><td colspan="8" class="metrics-context-switches">Trocas de contexto: ${contextSwitches}</td></tr>`;
     tb.innerHTML=html;
 }
 
+// Dá o play na simulação automática
 function togglePlay(){
     if(!SIM) 
         return;
@@ -236,7 +254,7 @@ function togglePlay(){
         curT=0;
 
     const btn=document.getElementById('playBtn'); 
-    btn.textContent='⏸ Pausar';
+    btn.textContent='Pausar';
     const speed=+document.getElementById('speed').value;
     playTimer=setInterval(()=>{
         curT++;
@@ -245,7 +263,7 @@ function togglePlay(){
     }, speed);
 }
 
-
+// Pausa a simulação automática
 function stopPlay(){
     if(playTimer){ clearInterval(playTimer); 
         playTimer=null; 
@@ -253,7 +271,7 @@ function stopPlay(){
 
     const btn=document.getElementById('playBtn'); 
     if(btn) 
-        btn.textContent='▶ Play';
+        btn.textContent='Play';
 }
 
 
@@ -274,5 +292,91 @@ document.getElementById('speed').addEventListener('change', ()=>{
     }
 });
 
+let currentView='gantt';
 
-run();
+// Alterna entre o gráfico de Gantt e o diagrama em texto (formato do enunciado)
+function toggleView(){
+  if(!SIM) return;
+  currentView = currentView==='gantt' ? 'text' : 'gantt';
+  document.getElementById('ganttView').style.display = currentView==='gantt' ? '' : 'none';
+  document.getElementById('textView').style.display = currentView==='text' ? '' : 'none';
+  document.getElementById('viewToggleBtn').textContent = currentView==='gantt' ? 'Ver como texto' : 'Ver como gráfico';
+  if(currentView==='text') renderTextDiagram();
+}
+
+// Monta o diagrama vertical "tempo | P1 P2 P3..." igual ao exemplo do PDF
+function renderTextDiagram(){
+  const {procs, intervals, maxT} = SIM;
+
+  // monta um mapa [tick][processo] = true/false, varrendo os intervalos
+  const occupied = {};
+  procs.forEach(p => occupied[p.name] = new Array(maxT).fill(false));
+  intervals.forEach(iv=>{
+    for(let t=iv.start; t<iv.end; t++) occupied[iv.name][t]=true;
+  });
+
+  const names = procs.map(p=>p.name);
+  const colWidth = 4; // largura de cada coluna de processo
+
+  let out = 'tempo'.padEnd(8) + names.map(n=>n.padEnd(colWidth)).join('') + '\n';
+
+  for(let t=0; t<maxT; t++){
+    const label = `${t}-${t+1}`.padEnd(8);
+    const cols = names.map(n => (occupied[n][t] ? '##' : '--').padEnd(colWidth));
+    out += label + cols.join('') + '\n';
+  }
+
+  document.getElementById('textView').textContent = out;
+}
+
+//Lê o input em texto bruto e transforma nos processos do nosso sistema
+function applyRawInput(){
+  const hint=document.getElementById('parseHint');
+  const raw=document.getElementById('rawInput').value;
+  const lines=raw.split('\n').map(l=>l.trim()).filter(l=>l.length>0);
+
+  const parsed=[];
+  const bad=[];
+  lines.forEach((line, idx)=>{
+    const parts=line.split(/\s+/).filter(Boolean);
+    // formato esperado: 3 inteiros (chegada, duração, prioridade) separados por espaço
+    if(parts.length<3 || parts.some(p=>!/^-?\d+$/.test(p))){
+      bad.push(idx+1);
+      return;
+    }
+    const [a,b,p]=parts.map(Number);
+    // chegada >=0, duração >=1 (não existe processo de duração 0), prioridade >=0
+    if(a<0 || b<1 || p<0){
+      bad.push(idx+1);
+      return;
+    }
+    parsed.push({a,b,p});
+  });
+
+  if(bad.length>0){
+    hint.style.color='#c0392b';
+    hint.textContent=`Linha(s) ${bad.join(', ')} fora do formato "chegada duração prioridade" (3 inteiros válidos, chegada e prioridade >=0, duração >=1). Nada foi aplicado.`;
+    return;
+  }
+  if(parsed.length===0){
+    hint.style.color='#c0392b';
+    hint.textContent='Nenhuma linha de processo encontrada.';
+    return;
+  }
+
+  document.getElementById('procBody').innerHTML='';
+  rows=0;
+  parsed.forEach(pr=>addRow(pr));
+
+  const cfgRaw=document.getElementById('rawConfig').value;
+  const cfg={};
+  cfgRaw.split('\n').forEach(line=>{
+    const m=line.match(/^\s*(quantum|aging)\s*:\s*(-?\d+)\s*$/i);
+    if(m) cfg[m[1].toLowerCase()]=+m[2];
+  });
+  if(cfg.quantum!==undefined) document.getElementById('quantum').value=cfg.quantum;
+  if(cfg.aging!==undefined) document.getElementById('aging').value=cfg.aging;
+
+  hint.style.color='';
+  hint.textContent=`${parsed.length} processo(s) carregado(s)${(cfg.quantum!==undefined||cfg.aging!==undefined)?' + config aplicada':''}.`;
+}
