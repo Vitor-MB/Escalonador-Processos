@@ -1,41 +1,23 @@
 :root{
-  --bg:#F4F6F5; 
-  --panel:#FFFFFF; 
-  --ink:#16201C; 
-  --line:#D7DDDA; 
-  --muted:#5D6A64;
+  --bg:#0d0e0d;
+  --panel:#0f1b08;
+  --ink:#fcfbfb;
+  --line:#545455;
+  --muted:#c2c2c2;
   --remove: #a81e1e;
   --emCima: #b8b6b6;
-  --p1:#7BB8E8; 
-  --p1d:#3E7FAE; 
-  --p2:#F2D06B; 
-  --p2d:#B98F1E; 
-  --p3:#8FD6A8; 
-  --p3d:#3C8F5E;
-  --p4:#E79ACB; 
-  --p4d:#B24E8C; 
-  --p5:#C6A8E8; 
-  --p5d:#7C4FB0; 
-  --p6:#F0A26B; 
-  --p6d:#B4632B;
-}
-
-@media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]){ 
-    --bg:#1d1f1d; 
-    --panel:#1A211C; 
-    --ink:#e6e1e1; 
-    --line:#337e58; 
-    --muted:#00ff6a; 
-    }
-}
-
-:root[data-theme="dark"]{
-     --bg:#121613; 
-     --panel:#1A211C; 
-     --ink:#EAF0EC; 
-     --line:#2E3833; 
-     --muted:#93A199; 
+  --p1:#0091ff;
+  --p1d:#033f69;
+  --p2:#f05050;
+  --p2d:#790707;
+  --p3:#00ff59;
+  --p3d:#38ad69;
+  --p4:#e95bb5;
+  --p4d:#B24E8C;
+  --p5:#9d6dd4;
+  --p5d:#7700ff;
+  --p6:#fa6800;
+  --p6d:#9c4603;
 }
 
 *{
@@ -70,6 +52,18 @@ h1{
     letter-spacing:-0.02em;
 }
 
+.textout{
+  font-family: "Fira Sans", monospace;
+  font-size:13px;
+  background:var(--bg);
+  border:1px solid var(--line);
+  border-radius:8px;
+  padding:14px 16px;
+  overflow-x:auto;
+  line-height:1.5;
+  white-space:pre;
+  margin:0;
+}
 
 .sub{
     color:var(--muted); 
@@ -80,7 +74,7 @@ h1{
 .card{
     background:var(--panel); 
     border:1px solid var(--line); 
-    border-radius:14px; 
+  
     padding:20px 22px; 
     margin-bottom:22px;
 }
@@ -91,6 +85,15 @@ h1{
     margin:0 0 14px; 
     font-weight:600; 
     color:var(--ink);
+}
+
+.error-banner{
+    background: #ffe6e6;
+    color: #8a1f1f;
+    border:1px solid #f1c0c0;
+    padding:10px 14px;
+    border-radius:8px;
+    margin-bottom:12px;
 }
 
 label{
@@ -307,7 +310,7 @@ button:focus-visible, select:focus-visible, input:focus-visible{
     display:flex; 
     gap:14px; 
     flex-wrap:wrap; 
-    margin-top:16px; 
+    margin-top:25px; 
     font-family: "Fira Sans", sans-serif;
     font-size:12px; 
     color:var(--muted);
@@ -366,4 +369,53 @@ table.metrics tr:last-child td{
     font-family: "Fira Sans", sans-serif;
     font-weight:600; 
     color:var(--ink);
+}
+
+.entradaTexto{
+    width:100%; 
+    font-family:'Fira Sans',monospace; 
+    font-size:13px; 
+    background:var(--bg); 
+    color:var(--ink); 
+    border:1px solid var(--line); 
+    border-radius:8px; 
+    padding:8px 9px; 
+    resize:vertical;
+}
+
+.BtnProc{
+    margin-top:10px;
+    margin-bottom:50px;
+}
+
+.proc-input {
+    width: 60px;
+}
+
+.diamond-legend {
+    position: static;
+    transform: rotate(45deg);
+    width: 8px;
+    height: 8px;
+    border-color: var(--muted);
+    color: var(--muted);
+}
+
+.diamond-legend-done {
+    position: static;
+    transform: rotate(45deg);
+    width: 8px;
+    height: 8px;
+    border-color: var(--muted);
+    color: var(--muted);
+    background: var(--muted);
+}
+
+.metrics-context-switches {
+    text-align: center;
+    font-weight: 600;
+}
+
+.tempo {
+    font-size: 15px;
 }

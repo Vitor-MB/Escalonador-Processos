@@ -16,6 +16,8 @@
 <body>
   <div class="wrap">
 
+    <div id="errorBanner" class="error-banner" style="display:none;"></div>
+
     <div class="card">
       <h2>Algoritmo</h2>
 
@@ -49,6 +51,23 @@
         </div>
     </div>
 
+    <h2>Entrada por texto</h2>
+    <div class="algo-row" style="align-items:start;">
+      <div style="flex:2; min-width:260px;">
+        <label for="rawInput">Processos ( [chegada] [duração] [prioridade] )</label>
+        <textarea id="rawInput" class="entradaTexto" rows="5" placeholder="0 5 2&#10;0 2 3&#10;1 4 1&#10;3 3 4"></textarea>
+      </div>
+
+      <div style="flex:1; min-width:180px;">
+        <label for="rawConfig">Config (quantum/aging)</label>
+        <textarea id="rawConfig" class="entradaTexto" rows="5" placeholder="quantum:2&#10;aging:1" ></textarea>
+      </div>
+    </div>
+
+    <div class="actions BtnProc">
+      <button class="main run" onclick="applyRawInput()">Criar Processos</button>
+    </div>
+
       <h2>Processos</h2>
       <table class="proc" id="procTable">
         <thead><tr><th></th><th>Processo</th><th>Chegada</th><th>Duração</th><th>Prioridade</th><th></th></tr></thead>
@@ -78,12 +97,15 @@
       <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
         <h2 style="margin:0;">Linha do tempo</h2>
         <div style="display:flex; gap:8px;">
-          <button class="main run" id="playBtn" onclick="togglePlay()">▶ Play</button>
-          <button class="main add" onclick="resetPlay()">Reiniciar</button>
+          <button class="main run" id="viewToggleBtn" onclick="toggleView()">Ver como texto</button>
+          <button class="main run" id="playBtn" onclick="togglePlay()">Play</button>
+          <button class="main run" onclick="resetPlay()">Reiniciar</button>
         </div>
       </div>
-      
-      <div class="gantt"><div class="gantt-inner" id="ganttInner"></div></div>
+
+      <div class="gantt" id="ganttView"><div class="gantt-inner" id="ganttInner"></div></div>
+      <pre class="textout" id="textView" style="display:none;"></pre>
+
       <div class="legend" id="legend"></div>
       <p class="hint" id="clockLine">t = 0</p>
       <h2 style="margin-top:22px;">Métricas</h2>
