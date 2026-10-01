@@ -35,7 +35,7 @@ function syncAlgoUI(){
     document.getElementById('agingBox').classList.toggle('show', usesAging);
 }
 
-// Inicializa a UI buscando os algoritmos no backend (se disponível)
+// Inicializa a UI buscando os algoritmos no backend
 async function init(){
     try{
         const resp = await fetch(API_BASE + '/algorithm');
@@ -87,15 +87,14 @@ function run(){
     const procs=readProcs();
     const algo=document.getElementById('algo').value;
 
-    // usar Number.isFinite em vez de "||", pra não trocar 0 pelo padrão
-    // (0 é falsy em JS, então "0 || 2" dava 2 por engano)
+    //lê o quantum e aging, se forem válidos no caso de nãousa valores default
     const quantumRaw=+document.getElementById('quantum').value;
     const quantum=Number.isFinite(quantumRaw) ? quantumRaw : 2;
 
     const agingRaw=+document.getElementById('aging').value;
     const aging=Number.isFinite(agingRaw) ? agingRaw : 3;
 
-    // Chama o backend; se falhar, exibe erro para o usuário
+    // Chama o backend, se falhar, exibe erro para o usuário
     (async ()=>{
         try{
             hideError();
@@ -294,7 +293,7 @@ document.getElementById('speed').addEventListener('change', ()=>{
 
 let currentView='gantt';
 
-// Alterna entre o gráfico de Gantt e o diagrama em texto (formato do enunciado)
+// Alterna entre o gráfico de Gantt e o diagrama em texto (no estilo d PDF)
 function toggleView(){
   if(!SIM) return;
   currentView = currentView==='gantt' ? 'text' : 'gantt';
@@ -304,25 +303,34 @@ function toggleView(){
   if(currentView==='text') renderTextDiagram();
 }
 
-// Monta o diagrama vertical "tempo | P1 P2 P3..." igual ao exemplo do PDF
+// Monta o diagrama de texto
 function renderTextDiagram(){
-  const {procs, intervals, maxT} = SIM;
+  const {procs, intervals, stats, maxT} = SIM;
+  const names = procs.map(p=>p.name);
 
-  // monta um mapa [tick][processo] = true/false, varrendo os intervalos
-  const occupied = {};
-  procs.forEach(p => occupied[p.name] = new Array(maxT).fill(false));
-  intervals.forEach(iv=>{
-    for(let t=iv.start; t<iv.end; t++) occupied[iv.name][t]=true;
+  const statusByProc = {};
+  names.forEach(n => statusByProc[n] = new Array(maxT).fill(' '));
+
+  stats.forEach(s=>{
+    for(let t=s.arrival; t < (s.finish ?? maxT); t++){
+      if(t>=0 && t<maxT) statusByProc[s.name][t]='--';
+    }
   });
 
-  const names = procs.map(p=>p.name);
-  const colWidth = 4; // largura de cada coluna de processo
+  intervals.forEach(iv=>{
+    for(let t=iv.start; t<iv.end; t++){
+      if(t>=0 && t<maxT) statusByProc[iv.name][t]='##';
+    }
+  });
 
-  let out = 'tempo'.padEnd(8) + names.map(n=>n.padEnd(colWidth)).join('') + '\n';
+  const digits = String(maxT).length;
+  const colWidth = 6;
+
+  let out = 'tempo'.padEnd(8) + names.map(n => n.padStart(colWidth)).join('') + '\n';
 
   for(let t=0; t<maxT; t++){
-    const label = `${t}-${t+1}`.padEnd(8);
-    const cols = names.map(n => (occupied[n][t] ? '##' : '--').padEnd(colWidth));
+    const label = `${String(t).padStart(digits)}-${String(t+1).padStart(digits)}`.padEnd(8);
+    const cols = names.map(n => statusByProc[n][t].padStart(colWidth));
     out += label + cols.join('') + '\n';
   }
 
@@ -339,13 +347,13 @@ function applyRawInput(){
   const bad=[];
   lines.forEach((line, idx)=>{
     const parts=line.split(/\s+/).filter(Boolean);
-    // formato esperado: 3 inteiros (chegada, duração, prioridade) separados por espaço
+
     if(parts.length<3 || parts.some(p=>!/^-?\d+$/.test(p))){
       bad.push(idx+1);
       return;
     }
     const [a,b,p]=parts.map(Number);
-    // chegada >=0, duração >=1 (não existe processo de duração 0), prioridade >=0
+
     if(a<0 || b<1 || p<0){
       bad.push(idx+1);
       return;
