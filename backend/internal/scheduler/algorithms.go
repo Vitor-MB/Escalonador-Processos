@@ -63,11 +63,15 @@ func newAlgorithm(id string) algorithm {
 	}
 }
 
+// minorKey implementa a interface algorithm para algoritmos que escolhem o
+// próximo processo com base em uma chave menor (arrival, burst, remaining, priority).
+// Se priority for escolhida pela maior, inverte o sinal da chave
 type minorKey struct {
 	key        func(p *Process) int
 	preemptive bool
 }
 
+// pick escolhe o próximo processo a ser executado com base na chave menor.
 func (m minorKey) pick(e *Engine) *Process {
 	if !m.preemptive {
 		if c := e.Current(); c != nil {
@@ -80,6 +84,7 @@ func (m minorKey) pick(e *Engine) *Process {
 
 func (minorKey) after(*Engine, *Process, bool) {}
 
+// roundRobin implementa a interface algorithm para o algoritmo Round Robin.
 type roundRobin struct{}
 
 func (roundRobin) pick(e *Engine) *Process {
@@ -93,6 +98,7 @@ func (roundRobin) pick(e *Engine) *Process {
 	return e.Ready[0]
 }
 
+// after é chamado após a execução de um tick, para atualizar o estado do algoritmo Round Robin.
 func (roundRobin) after(e *Engine, running *Process, sliceEnded bool) {
 	if sliceEnded && running.remaining > 0 {
 		e.removeFromReady(running)
@@ -100,8 +106,10 @@ func (roundRobin) after(e *Engine, running *Process, sliceEnded bool) {
 	}
 }
 
+// rrAging implementa a interface algorithm para o algoritmo Round Robin com prioridade e Aging.
 type rrAging struct{}
 
+// pick escolhe o próximo processo a ser executado com base na prioridade e no Aging.
 func (rrAging) pick(e *Engine) *Process {
 	if c := e.Current(); c != nil && e.Slice > 0 {
 		return c
@@ -110,6 +118,7 @@ func (rrAging) pick(e *Engine) *Process {
 	return e.Best(func(p *Process) int { return p.key })
 }
 
+// after é chamado após a execução de um tick, para atualizar o estado do algoritmo Round Robin com prioridade e Aging.
 func (rrAging) after(e *Engine, running *Process, sliceEnded bool) {
 	if !sliceEnded {
 		return
